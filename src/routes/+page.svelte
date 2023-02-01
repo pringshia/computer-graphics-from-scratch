@@ -9,7 +9,7 @@
 <p>
 	Exercises implemented with <a href="https://svelte.dev/">Svelte</a> and Typescript, using the
 	<code>canvas</code>
-	tag.
+	API.
 </p>
 <ul>
 	<li><a href="/ch2">Chapter 2 - Basic Raytracing</a></li>
