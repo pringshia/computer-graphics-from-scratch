@@ -132,6 +132,7 @@
 <svelte:head>
 	<title>Chapter 2 - Basic Raytracing</title>
 </svelte:head>
+<a href="/">&larr; Contents</a>
 <h1>Chapter 2 - Basic Raytracing</h1>
 <p>Canvas implementation:</p>
 
