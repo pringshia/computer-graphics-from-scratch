@@ -1,6 +1,9 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 
+	export const data = {
+		title: 'Chapter 2 - Basic Raytracing'
+	};
 	let w = 400;
 	let h = 400;
 	let displayText = '';
@@ -129,11 +132,6 @@
 	});
 </script>
 
-<svelte:head>
-	<title>Chapter 2 - Basic Raytracing</title>
-</svelte:head>
-<a href="/">&larr; Contents</a>
-<h1>Chapter 2 - Basic Raytracing</h1>
 <p>Canvas implementation:</p>
 
 <canvas id="ch1" width={w} height={h} />

@@ -129,12 +129,6 @@
 	});
 </script>
 
-<svelte:head>
-	<title>Chapter 3 - Light</title>
-</svelte:head>
-<a href="/">&larr; Contents</a>
-
-<h1>Chapter 3 - Light</h1>
 <p>Canvas implementation:</p>
 
 <canvas id="ch1" width={w} height={h} />
