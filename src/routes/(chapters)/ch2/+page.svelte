@@ -111,7 +111,6 @@
 			// Run in a microtask:
 			setTimeout(() => {
 				let start = performance.now();
-
 				for (let i = 0; i < imageData.data.length; i += 4) {
 					let xCoord = ((i / 4) % h) - w / 2;
 					let yCoord = -1 * (Math.floor(i / 4 / h) - h / 2);
