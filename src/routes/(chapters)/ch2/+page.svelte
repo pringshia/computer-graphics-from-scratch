@@ -92,8 +92,8 @@
 					if (discriminant < 0) {
 						return [Infinity, Infinity];
 					}
-					let t1 = -b + Math.sqrt(discriminant) / (2 * a);
-					let t2 = -b - Math.sqrt(discriminant) / (2 * a);
+					let t1 = (-b + Math.sqrt(discriminant)) / (2 * a);
+					let t2 = (-b - Math.sqrt(discriminant)) / (2 * a);
 
 					return [t1, t2];
 				};
