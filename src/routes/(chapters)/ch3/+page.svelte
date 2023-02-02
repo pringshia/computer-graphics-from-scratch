@@ -5,8 +5,18 @@
 	let h = 400;
 	let displayText = '';
 
-	// don't run this code server-side
-	onMount(() => {
+	let showSpecular = false;
+
+	// the conditional below seems silly because it always resolves
+	// to true, but it's the only way I could figure out how to make
+	// the binding reactive to `showSpecular`
+	$: if (showSpecular === true || showSpecular === false) {
+		init();
+	}
+
+	// don't run this code server-side (unnecessary now that i disabled SSR)
+	onMount(() => init());
+	function init() {
 		let canvas = document.getElementById('ch1') as HTMLCanvasElement | null;
 		let ctx = canvas?.getContext('2d');
 
@@ -21,6 +31,7 @@
 			center: Pos3D;
 			radius: Unit;
 			color: RGB;
+			specular: number;
 		};
 		type Light = AmbientLight | PointLight | DirectionLight;
 		type BaseLight = {
@@ -46,10 +57,34 @@
 			// let cameraOrientation; // assumed to be facing straight up the z-axis for now
 			let viewport = { vh: 1, vw: 1, distance: 1 }; // height, width, distance from camera
 			let sceneObjects: Sphere[] = [
-				{ type: 'sphere', center: [0, -1, 3], radius: 1, color: [255, 0, 0] }, // red
-				{ type: 'sphere', center: [2, 0, 4], radius: 1, color: [0, 0, 255] }, // blue
-				{ type: 'sphere', center: [-2, 0, 4], radius: 1, color: [0, 255, 0] }, // green
-				{ type: 'sphere', center: [0, -5051, 0], radius: 5050, color: [255, 255, 0] } // yellow
+				{
+					type: 'sphere',
+					center: [0, -1, 3],
+					radius: 1,
+					color: [255, 0, 0], // red
+					specular: 500 // shiny
+				},
+				{
+					type: 'sphere',
+					center: [2, 0, 4],
+					radius: 1,
+					color: [0, 0, 255], // blue
+					specular: 500 // shiny
+				},
+				{
+					type: 'sphere',
+					center: [-2, 0, 4],
+					radius: 1,
+					color: [0, 255, 0], // green
+					specular: 10 // somewhat shiny
+				},
+				{
+					type: 'sphere',
+					center: [0, -5051, 0],
+					radius: 5050,
+					color: [255, 255, 0], // yellow
+					specular: 1000 // very shiny
+				}
 			];
 			let lights: Light[] = [
 				{ type: 'ambient', intensity: 0.2 },
@@ -87,7 +122,10 @@
 				N = scale(N, 1 / len(N));
 				// return closestObject.color;
 				// return scale([255, 255, 255], computeLighting(P, N));
-				return scale(closestObject.color, computeLighting(P, N));
+				return scale(
+					closestObject.color,
+					computeLighting(P, N, scale(vDirection, -1), closestObject.specular)
+				);
 			};
 			let dot = (left: Dir3D, right: Dir3D) => {
 				return left[0] * right[0] + left[1] * right[1] + left[2] * right[2];
@@ -126,7 +164,7 @@
 
 				return [t1, t2];
 			};
-			let computeLighting = (point: Pos3D, normal: Dir3D) => {
+			let computeLighting = (point: Pos3D, normal: Dir3D, view: Dir3D, specular: number) => {
 				let i = 0; // total intensity at this point
 				for (let light of lights) {
 					if (light.type === 'ambient') {
@@ -138,9 +176,20 @@
 						} else {
 							L = light.direction;
 						}
+
+						// diffuse
 						let normalLight = dot(normal, L);
 						if (normalLight > 0) {
 							i += (light.intensity * normalLight) / (len(normal) * len(L));
+						}
+
+						// specular
+						if (specular !== -1 && showSpecular) {
+							let R = sub(scale(normal, 2 * dot(normal, L)), L);
+							let RdotV = dot(R, view);
+							if (RdotV > 0) {
+								i += light.intensity * Math.pow(RdotV / (len(R) * len(view)), specular);
+							}
 						}
 					}
 				}
@@ -179,8 +228,10 @@
 				displayText = `Rendered in ${((performance.now() - start) / 1000).toFixed(2)}s `;
 			});
 		}
-	});
+	}
 </script>
+
+<p><label><input bind:checked={showSpecular} type="checkbox" /> Show specular?</label></p>
 
 <p>Canvas implementation:</p>
 
