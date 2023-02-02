@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="" xml:lang="" xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta charset="utf-8"/>
+<meta content="pandoc" name="generator"/>
+<meta content="width=device-width, initial-scale=1.0, user-scalable=yes" name="viewport"/>
+<title>Diffuse reflection demo - Computer Graphics from scratch - Gabriel Gambetta</title>
+<style>
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    span.underline{text-decoration: underline;}
+    div.column{display: inline-block; vertical-align: top; width: 50%;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    ul.task-list{list-style: none;}
+  </style>
+<link href="/css/style.css" rel="stylesheet"/>
+<!--[if lt IE 9]>
+    <script src="//cdnjs.cloudflare.com/ajax/libs/html5shiv/3.7.3/html5shiv-printshiv.min.js"></script>
+  <![endif]-->
+<script src="/js/jquery-3.2.1.min.js"></script>
+<!-- Google tag (gtag.js) -->
+<script async="" src="https://www.googletagmanager.com/gtag/js?id=G-M38VSQ9GME"></script>
+<script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-M38VSQ9GME');
+  </script>
+</head>
+<body>
+<div class="main">
+<div class="nav">
+<a href="/computer-graphics-from-scratch/">&lt;&lt; Computer Graphics from scratch</a> <a class="homelink" href="/index.html">Gabriel Gambetta</a>
+</div>
+<div style="clear:both;"></div>
+<!--
+-->
+<h1 id="diffuse-reflection-demo">Diffuse reflection demo</h1>
+<p>This demo extends the <a href="raytracer-01.html">previous demo</a> by implementing <a href="../03-light.html#diffuse-reflection">diffuse reflection</a>. The spheres now look like spheres.</p>
+<div class="centered">
+<canvas width="20" height="20" id="canvas" style="border: 1px grey solid">
+</canvas>
+</div>
+<script>
+
+// ======================================================================
+//  Low-level canvas access.
+// ======================================================================
+
+var canvas = document.getElementById("canvas");
+var canvas_context = canvas.getContext("2d");
+var canvas_buffer = canvas_context.getImageData(0, 0, canvas.width, canvas.height);
+var canvas_pitch = canvas_buffer.width * 4;
+
+
+// The PutPixel() function.
+var PutPixel = function(x, y, color) {
+  x = canvas.width/2 + x;
+  y = canvas.height/2 - y - 1;
+
+  if (x < 0 || x >= canvas.width || y < 0 || y >= canvas.height) {
+    return;
+  }
+
+  var offset = 4*x + canvas_pitch*y;
+  canvas_buffer.data[offset++] = color[0];
+  canvas_buffer.data[offset++] = color[1];
+  canvas_buffer.data[offset++] = color[2];
+  canvas_buffer.data[offset++] = 255; // Alpha = 255 (full opacity)
+}
+
+
+// Displays the contents of the offscreen buffer into the canvas.
+var UpdateCanvas = function() {
+  canvas_context.putImageData(canvas_buffer, 0, 0);
+}
+
+
+// ======================================================================
+//  Linear algebra and helpers.
+// ======================================================================
+
+// Dot product of two 3D vectors.
+var DotProduct = function(v1, v2) {
+  return v1[0]*v2[0] + v1[1]*v2[1] + v1[2]*v2[2];
+}
+
+
+// Length of a 3D vector.
+var Length = function(vec) {
+  return Math.sqrt(DotProduct(vec, vec));
+}
+
+
+// Computes k * vec.
+var Multiply = function(k, vec) {
+  return [k*vec[0], k*vec[1], k*vec[2]];
+}
+
+
+// Computes v1 + v2.
+var Add = function(v1, v2) {
+  return [v1[0] + v2[0], v1[1] + v2[1], v1[2] + v2[2]];
+}
+
+
+// Computes v1 - v2.
+var Subtract = function(v1, v2) {
+  return [v1[0] - v2[0], v1[1] - v2[1], v1[2] - v2[2]];
+}
+
+
+// Clamps a color to the canonical color range.
+var Clamp = function(vec) {
+  return [Math.min(255, Math.max(0, vec[0])),
+      Math.min(255, Math.max(0, vec[1])),
+      Math.min(255, Math.max(0, vec[2]))];
+}
+
+
+// ======================================================================
+//  A raytracer with diffuse illumination.
+// ======================================================================
+
+// A Sphere.
+var Sphere = function(center, radius, color) {
+  this.center = center;
+  this.radius = radius;
+  this.color = color;
+}
+
+// A Light.
+var Light = function(ltype, intensity, position) {
+  this.ltype = ltype;
+  this.intensity = intensity;
+  this.position = position;
+}
+
+Light.AMBIENT = 0;
+Light.POINT = 1;
+Light.DIRECTIONAL = 2;
+
+
+// Scene setup.
+var viewport_size = 1;
+var projection_plane_z = 1;
+var camera_position = [0, 0, 0];
+var background_color = [255, 255, 255];
+var spheres = [new Sphere([0, -1, 3], 1, [255, 0, 0]),
+           new Sphere([2, 0, 4], 1, [0, 0, 255]),
+           new Sphere([-2, 0, 4], 1, [0, 255, 0]),
+           new Sphere([0, -5001, 0], 5000, [255, 255, 0])];
+
+var lights = [
+  new Light(Light.AMBIENT, 0.2),
+  new Light(Light.POINT, 0.6, [2, 1, 0]),
+  new Light(Light.DIRECTIONAL, 0.2, [1, 4, 4])
+];
+
+
+// Converts 2D canvas coordinates to 3D viewport coordinates.
+var CanvasToViewport = function(p2d) {
+  return [p2d[0] * viewport_size / canvas.width,
+      p2d[1] * viewport_size / canvas.height,
+      projection_plane_z];
+}
+
+
+// Computes the intersection of a ray and a sphere. Returns the values
+// of t for the intersections.
+var IntersectRaySphere = function(origin, direction, sphere) {
+  var oc = Subtract(origin, sphere.center);
+
+  var k1 = DotProduct(direction, direction);
+  var k2 = 2*DotProduct(oc, direction);
+  var k3 = DotProduct(oc, oc) - sphere.radius*sphere.radius;
+
+  var discriminant = k2*k2 - 4*k1*k3;
+  if (discriminant < 0) {
+    return [Infinity, Infinity];
+  }
+
+  var t1 = (-k2 + Math.sqrt(discriminant)) / (2*k1);
+  var t2 = (-k2 - Math.sqrt(discriminant)) / (2*k1);
+  return [t1, t2];
+}
+
+
+var ComputeLighting = function(point, normal) {
+  var intensity = 0;
+  var length_n = Length(normal);  // Should be 1.0, but just in case...
+  let debug = null
+
+  for (var i = 0; i < lights.length; i++) {
+    var light = lights[i];
+    if (light.ltype == Light.AMBIENT) {
+      intensity += light.intensity;
+    } else {
+      var vec_l;
+      if (light.ltype == Light.POINT) {
+    vec_l = Subtract(light.position, point);
+      } else {  // Light.DIRECTIONAL
+    vec_l = light.position;
+      }
+
+      var n_dot_l = DotProduct(normal, vec_l);
+      if (n_dot_l > 0) {
+        calc = light.intensity * n_dot_l / (length_n * Length(vec_l));
+        debug = {i: light.intensity, n: normal, ndot: n_dot_l, magN: length_n, magL: Length(vec_l), calc}
+        intensity += calc;
+      }
+    }
+  }
+
+  return [intensity, debug];
+}
+
+
+// Traces a ray against the set of spheres in the scene.
+var TraceRay = function(origin, direction, min_t, max_t) {
+  var closest_t = Infinity;
+  var closest_sphere = null;
+
+  for (var i = 0; i < spheres.length; i++) {
+    var ts = IntersectRaySphere(origin, direction, spheres[i]);
+    if (ts[0] < closest_t && min_t < ts[0] && ts[0] < max_t) {
+      closest_t = ts[0];
+      closest_sphere = spheres[i];
+    }
+    if (ts[1] < closest_t && min_t < ts[1] && ts[1] < max_t) {
+      closest_t = ts[1];
+      closest_sphere = spheres[i];
+    }
+  }
+
+  if (closest_sphere == null) {
+    return [background_color, null];
+  }
+
+  var point = Add(origin, Multiply(closest_t, direction));
+  var N = Subtract(point, closest_sphere.center);
+  normal = Multiply(1.0 / Length(N), N);
+  let [v, debug] = ComputeLighting(point, normal);
+  // debug = {P: point, t: closest_t, D: direction, normal, N }
+  debug = { S: closest_sphere, c: IntersectRaySphere(origin, direction, closest_sphere)}
+  return [Multiply(v, closest_sphere.color), debug];
+}
+
+
+//
+// Main loop.
+//
+let dump = [];
+for (var y = canvas.height/2; y > -canvas.height/2; y--) {
+for (var x = -canvas.width/2; x < canvas.width/2; x++) {
+    var direction = CanvasToViewport([x, y])
+    let [color, debug] = TraceRay(camera_position, direction, 1, Infinity);
+    dump.push({x, y, v: debug})
+    PutPixel(x, y, Clamp(color));
+  }
+}
+console.log(dump[100].v);
+
+UpdateCanvas();
+
+
+</script>
+<div class="centered">
+<b></b>
+</div>
+<div class="cgfs_navbar">
+<b>Computer Graphics From Scratch</b> · <a href="/computer-graphics-from-scratch/dedication.html">Dedication</a> | <a href="/computer-graphics-from-scratch/acknowledgements.html">Acknowledgements</a> | <a href="/computer-graphics-from-scratch/index.html">Table of Contents</a> | <a href="/computer-graphics-from-scratch/00-introduction.html">Introduction</a> | <a href="/computer-graphics-from-scratch/01-common-concepts.html">Introductory Concepts</a><br/><b>Part I: Raytracing</b> · <a href="/computer-graphics-from-scratch/02-basic-raytracing.html">Basic Raytracing</a> | <a href="/computer-graphics-from-scratch/03-light.html">Light</a> | <a href="/computer-graphics-from-scratch/04-shadows-and-reflections.html">Shadows and Reflections</a> | <a href="/computer-graphics-from-scratch/05-extending-the-raytracer.html">Extending the Raytracer</a><br/><b>Part II: Rasterization</b> · <a href="/computer-graphics-from-scratch/06-lines.html">Lines</a> | <a href="/computer-graphics-from-scratch/07-filled-triangles.html">Filled Triangles</a> | <a href="/computer-graphics-from-scratch/08-shaded-triangles.html">Shaded Triangles</a> | <a href="/computer-graphics-from-scratch/09-perspective-projection.html">Perspective Projection</a> | <a href="/computer-graphics-from-scratch/10-describing-and-rendering-a-scene.html">Describing and Rendering a Scene</a> | <a href="/computer-graphics-from-scratch/11-clipping.html">Clipping</a> | <a href="/computer-graphics-from-scratch/12-hidden-surface-removal.html">Hidden Surface Removal</a> | <a href="/computer-graphics-from-scratch/13-shading.html">Shading</a> | <a href="/computer-graphics-from-scratch/14-textures.html">Textures</a> | <a href="/computer-graphics-from-scratch/15-extending-the-rasterizer.html">Extending the Rasterizer</a><br/><b>Appendixes</b> · <a href="/computer-graphics-from-scratch/A0-linear-algebra.html">Linear Algebra</a> | <a href="/computer-graphics-from-scratch/afterword.html">Afterword</a>
+</div>
+<div class="signup" id="signup">
+</div>
+<script>$("#signup").load("/signup.php?m=cgfs&r=raytracer-02");</script>
+</div>
+<div class="copyright">© Gabriel Gambetta 2022</div>
+</body>
+</html>

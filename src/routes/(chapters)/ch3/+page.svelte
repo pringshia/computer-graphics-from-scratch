@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 
-	let w = 600;
-	let h = 600;
+	let w = 20;
+	let h = 20;
 	let displayText = '';
 
 	// don't run this code server-side
@@ -36,6 +36,8 @@
 		type RGBA = number[];
 		type Unit = number;
 
+		type Debug = any;
+
 		function start(ctx: CanvasRenderingContext2D) {
 			const imageData = ctx.createImageData(w, h);
 
@@ -64,7 +66,12 @@
 				(cy * viewport.vh) / h,
 				viewport.distance
 			];
-			let traceRay = (cameraPos: Pos3D, vDirection: Dir3D, tMin: Unit, tMax: Unit): RGB => {
+			let traceRay = (
+				cameraPos: Pos3D,
+				vDirection: Dir3D,
+				tMin: Unit,
+				tMax: Unit
+			): [RGB, Debug] => {
 				let closest_t = Infinity;
 				let closestObject = null;
 
@@ -80,14 +87,20 @@
 					}
 				}
 				if (closestObject === null) {
-					return BACKGROUND_COLOR;
+					return [BACKGROUND_COLOR, null];
 				}
 				let P = add(cameraPos, scale(vDirection, closest_t));
 				let N = sub(P, closestObject.center);
-				N = scale(N, 1 / len(N));
+				let normal = scale(N, 1 / len(N));
 				// return closestObject.color;
 				// return scale([255, 255, 255], computeLighting(P, N));
-				return scale(closestObject.color, computeLighting(P, N));
+
+				let [v, d] = computeLighting(P, normal);
+
+				// d = { P: cameraPos, t: closest_t, D: vDirection, normal, N };
+				d = { S: closestObject, c: intersectRayWithSphere(cameraPos, vDirection, closestObject) };
+
+				return [scale(closestObject.color, v), d];
 			};
 			let dot = (left: Dir3D, right: Dir3D) => {
 				return left[0] * right[0] + left[1] * right[1] + left[2] * right[2];
@@ -109,11 +122,7 @@
 			};
 			let intersectRayWithSphere = (cameraPos: Pos3D, vDirection: Dir3D, sphere: Sphere) => {
 				let r: Unit = sphere.radius;
-				let vCircle: Dir3D = [
-					ORIGIN[0] - sphere.center[0],
-					ORIGIN[1] - sphere.center[1],
-					ORIGIN[2] - sphere.center[2]
-				];
+				let vCircle: Dir3D = sub(ORIGIN, sphere.center);
 				let a = dot(vDirection, vDirection);
 				let b = 2 * dot(vCircle, vDirection);
 				let c = dot(vCircle, vCircle) - r * r;
@@ -121,13 +130,14 @@
 				if (discriminant < 0) {
 					return [Infinity, Infinity];
 				}
-				let t1 = -b + Math.sqrt(discriminant) / (2 * a);
-				let t2 = -b - Math.sqrt(discriminant) / (2 * a);
+				let t1 = (-b + Math.sqrt(discriminant)) / (2 * a);
+				let t2 = (-b - Math.sqrt(discriminant)) / (2 * a);
 
 				return [t1, t2];
 			};
-			let computeLighting = (point: Pos3D, normal: Dir3D) => {
+			let computeLighting = (point: Pos3D, normal: Dir3D): [number, Debug] => {
 				let i = 0; // total intensity at this point
+				let debug = null;
 				for (let light of lights) {
 					if (light.type === 'ambient') {
 						i += light.intensity;
@@ -140,19 +150,27 @@
 						}
 						let normalLight = dot(normal, L);
 						if (normalLight > 0) {
-							i += (light.intensity * normalLight) / (len(normal) * len(L));
+							let calc = (light.intensity * normalLight) / (len(normal) * len(L));
+							debug = {
+								i: light.intensity,
+								n: normal,
+								ndot: normalLight,
+								magN: len(normal),
+								magL: len(L)
+							};
+							i += calc;
 						}
 					}
 				}
-				return i;
+				return [i, debug];
 			};
 
-			function putPixel(cx: number, cy: number): RGB {
+			function putPixel(cx: number, cy: number): [RGB, Debug] {
 				let vDirection = canvasToViewport(cx, cy);
-				let pixelColor = traceRay(cameraPos, vDirection, tMin, tMax);
+				let [pixelColor, debug] = traceRay(cameraPos, vDirection, tMin, tMax);
 				let [r, g, b, a] = pixelColor;
 
-				return [r, g, b, 255];
+				return [[r, g, b, 255], debug];
 			}
 
 			// //////////////////////////////////////////////////////////////////
@@ -162,11 +180,13 @@
 			setTimeout(() => {
 				let start = performance.now();
 
-				for (let i = 0; i < imageData.data.length; i += 4) {
+				let dump = [];
+				for (let i = 0; i < imageData.data.length / 2; i += 4) {
 					let xCoord = ((i / 4) % h) - w / 2;
 					let yCoord = -1 * (Math.floor(i / 4 / h) - h / 2);
-					let color = putPixel(xCoord, yCoord);
+					let [color, debug] = putPixel(xCoord, yCoord);
 					let [r, g, b, a = 255] = color;
+					dump.push({ x: xCoord, y: yCoord, v: debug });
 
 					// Modify pixel data
 					imageData.data[i + 0] = r; // R value
@@ -175,6 +195,8 @@
 					imageData.data[i + 3] = a; // A value
 				}
 				// Draw image data to the canvas
+				console.log(dump[100].v);
+
 				ctx.putImageData(imageData, 0, 0);
 				displayText = `Rendered in ${((performance.now() - start) / 1000).toFixed(2)}s `;
 			});
