@@ -13,5 +13,5 @@
 </p>
 <ul>
 	<li><a href="/ch2">Chapter 2 - Basic Raytracing</a></li>
-	<!-- <li><a href="/ch3">Chapter 3 - Lights</a></li> -->
+	<li><a href="/ch3">Chapter 3 - Lights</a></li>
 </ul>

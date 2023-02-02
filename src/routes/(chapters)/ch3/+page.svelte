@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 
-	let w = 600;
-	let h = 600;
+	let w = 400;
+	let h = 400;
 	let displayText = '';
 
 	// don't run this code server-side
@@ -121,8 +121,8 @@
 				if (discriminant < 0) {
 					return [Infinity, Infinity];
 				}
-				let t1 = -b + Math.sqrt(discriminant) / (2 * a);
-				let t2 = -b - Math.sqrt(discriminant) / (2 * a);
+				let t1 = (-b + Math.sqrt(discriminant)) / (2 * a);
+				let t2 = (-b - Math.sqrt(discriminant)) / (2 * a);
 
 				return [t1, t2];
 			};
