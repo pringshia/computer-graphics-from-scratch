@@ -5,12 +5,18 @@
 	let h = 400;
 	let displayText = '';
 
-	let showSpecular = false;
+	let showSpecular = true;
+	let showShadows = true;
 
 	// the conditional below seems silly because it always resolves
 	// to true, but it's the only way I could figure out how to make
 	// the binding reactive to `showSpecular`
-	$: if (showSpecular === true || showSpecular === false) {
+	$: if (
+		showSpecular === true ||
+		showSpecular === false ||
+		showShadows === true ||
+		showShadows === false
+	) {
 		init();
 	}
 
@@ -80,8 +86,8 @@
 				},
 				{
 					type: 'sphere',
-					center: [0, -5051, 0],
-					radius: 5050,
+					center: [0, -5001, 0],
+					radius: 5000,
 					color: [255, 255, 0], // yellow
 					specular: 1000 // very shiny
 				}
@@ -91,15 +97,18 @@
 				{ type: 'point', intensity: 0.6, position: [2, 1, 0] },
 				{ type: 'directional', intensity: 0.2, direction: [1, 4, 4] }
 			];
-			let tMin = 0;
-			let tMax = 7000;
 
 			let canvasToViewport = (cx: number, cy: number) => [
 				(cx * viewport.vw) / w,
 				(cy * viewport.vh) / h,
 				viewport.distance
 			];
-			let traceRay = (cameraPos: Pos3D, vDirection: Dir3D, tMin: Unit, tMax: Unit): RGB => {
+			let closestIntersection = (
+				cameraPos: Pos3D,
+				vDirection: Dir3D,
+				tMin: Unit,
+				tMax: Unit
+			): { object: Sphere | null; t: Unit } => {
 				let closest_t = Infinity;
 				let closestObject = null;
 
@@ -114,6 +123,19 @@
 						closestObject = object;
 					}
 				}
+
+				return {
+					object: closestObject,
+					t: closest_t
+				};
+			};
+			let traceRay = (cameraPos: Pos3D, vDirection: Dir3D, tMin: Unit, tMax: Unit): RGB => {
+				let { t: closest_t, object: closestObject } = closestIntersection(
+					cameraPos,
+					vDirection,
+					tMin,
+					tMax
+				);
 				if (closestObject === null) {
 					return BACKGROUND_COLOR;
 				}
@@ -171,10 +193,20 @@
 						i += light.intensity;
 					} else {
 						let L;
+						let t_max;
+
 						if (light.type === 'point') {
 							L = sub(light.position, point);
+							t_max = 1;
 						} else {
 							L = light.direction;
+							t_max = Infinity;
+						}
+
+						// shadow check
+						let obstruction = closestIntersection(point, L, 0.001, t_max);
+						if (obstruction.object !== null && showShadows) {
+							continue;
 						}
 
 						// diffuse
@@ -196,6 +228,8 @@
 				return i;
 			};
 
+			let tMin = 0;
+			let tMax = 7000;
 			function putPixel(cx: number, cy: number): RGB {
 				let vDirection = canvasToViewport(cx, cy);
 				let pixelColor = traceRay(cameraPos, vDirection, tMin, tMax);
@@ -232,6 +266,7 @@
 </script>
 
 <p><label><input bind:checked={showSpecular} type="checkbox" /> Show specular?</label></p>
+<p><label><input bind:checked={showShadows} type="checkbox" /> Show shadows?</label></p>
 
 <p>Canvas implementation:</p>
 
