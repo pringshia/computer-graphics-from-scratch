@@ -167,12 +167,12 @@
 			let len = (vector: number[]): number => {
 				return Math.sqrt(dot(vector, vector));
 			};
-			let intersectRayWithSphere = (cameraPos: Pos3D, vDirection: Dir3D, sphere: Sphere) => {
+			let intersectRayWithSphere = (origin: Pos3D, vDirection: Dir3D, sphere: Sphere) => {
 				let r: Unit = sphere.radius;
 				let vCircle: Dir3D = [
-					cameraPos[0] - sphere.center[0],
-					cameraPos[1] - sphere.center[1],
-					cameraPos[2] - sphere.center[2]
+					origin[0] - sphere.center[0],
+					origin[1] - sphere.center[1],
+					origin[2] - sphere.center[2]
 				];
 				let a = dot(vDirection, vDirection);
 				let b = 2 * dot(vCircle, vDirection);
