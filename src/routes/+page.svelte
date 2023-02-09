@@ -14,4 +14,5 @@
 <ul>
 	<li><a href="/ch2">Chapter 2 - Basic Raytracing</a></li>
 	<li><a href="/ch3">Chapter 3 - Lights</a></li>
+	<li><a href="/ch4">Chapter 4 - Shadows and Reflections</a></li>
 </ul>

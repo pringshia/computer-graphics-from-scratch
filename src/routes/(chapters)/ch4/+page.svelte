@@ -7,6 +7,7 @@
 
 	let showSpecular = true;
 	let showShadows = true;
+	let showReflections = true;
 
 	// the conditional below seems silly because it always resolves
 	// to true, but it's the only way I could figure out how to make
@@ -15,7 +16,9 @@
 		showSpecular === true ||
 		showSpecular === false ||
 		showShadows === true ||
-		showShadows === false
+		showShadows === false ||
+		showReflections === true ||
+		showReflections === false
 	) {
 		init();
 	}
@@ -37,6 +40,7 @@
 			center: Pos3D;
 			radius: Unit;
 			color: RGB;
+			reflective: number;
 			specular: number;
 		};
 		type Light = AmbientLight | PointLight | DirectionLight;
@@ -58,7 +62,8 @@
 
 			// First we'll configure our camera and our viewport
 			const ORIGIN: Pos3D = [0, 0, 0];
-			let BACKGROUND_COLOR: RGB = [255, 255, 255];
+			// let BACKGROUND_COLOR: RGB = [255, 255, 255];
+			let BACKGROUND_COLOR: RGB = [0, 0, 0];
 			let cameraPos = ORIGIN; // origin
 			// let cameraOrientation; // assumed to be facing straight up the z-axis for now
 			let viewport = { vh: 1, vw: 1, distance: 1 }; // height, width, distance from camera
@@ -68,28 +73,32 @@
 					center: [0, -1, 3],
 					radius: 1,
 					color: [255, 0, 0], // red
-					specular: 500 // shiny
+					specular: 500, // shiny
+					reflective: 0.3 // a bit reflective
 				},
 				{
 					type: 'sphere',
 					center: [2, 0, 4],
 					radius: 1,
 					color: [0, 0, 255], // blue
-					specular: 500 // shiny
+					specular: 500, // shiny
+					reflective: 0.4 // a bit more reflective
 				},
 				{
 					type: 'sphere',
 					center: [-2, 0, 4],
 					radius: 1,
 					color: [0, 255, 0], // green
-					specular: 10 // somewhat shiny
+					specular: 10, // somewhat shiny
+					reflective: 0.4 // even more reflective
 				},
 				{
 					type: 'sphere',
 					center: [0, -5001, 0],
 					radius: 5000,
 					color: [255, 255, 0], // yellow
-					specular: 1000 // very shiny
+					specular: 1000, // very shiny
+					reflective: 0.5 // half reflective
 				}
 			];
 			let lights: Light[] = [
@@ -129,7 +138,13 @@
 					t: closest_t
 				};
 			};
-			let traceRay = (cameraPos: Pos3D, vDirection: Dir3D, tMin: Unit, tMax: Unit): RGB => {
+			let traceRay = (
+				cameraPos: Pos3D,
+				vDirection: Dir3D,
+				tMin: Unit,
+				tMax: Unit,
+				recursionDepth: number = 3
+			): RGB => {
 				let { t: closest_t, object: closestObject } = closestIntersection(
 					cameraPos,
 					vDirection,
@@ -144,10 +159,22 @@
 				N = scale(N, 1 / len(N));
 				// return closestObject.color;
 				// return scale([255, 255, 255], computeLighting(P, N));
-				return scale(
+				let localColor = scale(
 					closestObject.color,
 					computeLighting(P, N, scale(vDirection, -1), closestObject.specular)
 				);
+
+				if (!showReflections) return localColor;
+
+				let r = closestObject.reflective;
+				if (recursionDepth <= 0 || r <= 0) {
+					return localColor;
+				}
+
+				let R = reflectRay(scale(vDirection, -1), N);
+				let reflectedColor = traceRay(P, R, 0.001, Infinity, recursionDepth - 1);
+
+				return add(scale(localColor, 1 - r), scale(reflectedColor, r));
 			};
 			let dot = (left: Dir3D, right: Dir3D) => {
 				return left[0] * right[0] + left[1] * right[1] + left[2] * right[2];
@@ -166,6 +193,9 @@
 			};
 			let len = (vector: number[]): number => {
 				return Math.sqrt(dot(vector, vector));
+			};
+			let reflectRay = (ray: Dir3D, normal: Dir3D): Dir3D => {
+				return sub(scale(normal, 2 * dot(normal, ray)), ray);
 			};
 			let intersectRayWithSphere = (origin: Pos3D, vDirection: Dir3D, sphere: Sphere) => {
 				let r: Unit = sphere.radius;
@@ -267,6 +297,7 @@
 
 <p><label><input bind:checked={showSpecular} type="checkbox" /> Show specular?</label></p>
 <p><label><input bind:checked={showShadows} type="checkbox" /> Show shadows?</label></p>
+<p><label><input bind:checked={showReflections} type="checkbox" /> Show reflections?</label></p>
 
 <p>Canvas implementation:</p>
 
