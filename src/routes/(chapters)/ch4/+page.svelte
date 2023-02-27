@@ -4,10 +4,13 @@
 	let w = 400;
 	let h = 400;
 	let displayText = '';
+	const DEFAULT_EPSILON = 0.001;
+	let EPSILON = 0.001;
 
 	let showSpecular = true;
 	let showShadows = true;
 	let showReflections = true;
+	let useEpsilon = true;
 
 	// the conditional below seems silly because it always resolves
 	// to true, but it's the only way I could figure out how to make
@@ -18,8 +21,16 @@
 		showShadows === true ||
 		showShadows === false ||
 		showReflections === true ||
-		showReflections === false
+		showReflections === false ||
+		useEpsilon === true ||
+		useEpsilon === false
 	) {
+		if (!useEpsilon) {
+			EPSILON = 0;
+		} else {
+			EPSILON = DEFAULT_EPSILON;
+		}
+
 		init();
 	}
 
@@ -172,7 +183,7 @@
 				}
 
 				let R = reflectRay(scale(vDirection, -1), N);
-				let reflectedColor = traceRay(P, R, 0.001, Infinity, recursionDepth - 1);
+				let reflectedColor = traceRay(P, R, EPSILON, Infinity, recursionDepth - 1);
 
 				return add(scale(localColor, 1 - r), scale(reflectedColor, r));
 			};
@@ -234,7 +245,7 @@
 						}
 
 						// shadow check
-						let obstruction = closestIntersection(point, L, 0.001, t_max);
+						let obstruction = closestIntersection(point, L, EPSILON, t_max);
 						if (obstruction.object !== null && showShadows) {
 							continue;
 						}
@@ -298,6 +309,7 @@
 <p><label><input bind:checked={showSpecular} type="checkbox" /> Show specular?</label></p>
 <p><label><input bind:checked={showShadows} type="checkbox" /> Show shadows?</label></p>
 <p><label><input bind:checked={showReflections} type="checkbox" /> Show reflections?</label></p>
+<p><label><input bind:checked={useEpsilon} type="checkbox" /> Use epsilon?</label></p>
 
 <p>Canvas implementation:</p>
 
